@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
 // Chat endpoint - for conversational AI
 export const sendChatMessage = async (message, conversationHistory = []) => {
@@ -15,7 +15,7 @@ export const sendChatMessage = async (message, conversationHistory = []) => {
     })
 
     if (!response.ok) {
-      throw new Error('Failed to send message')
+      throw new Error(`Failed to send message: ${response.statusText}`)
     }
 
     return await response.json()
@@ -40,7 +40,7 @@ export const generateAIResponse = async (prompt, type = 'general') => {
     })
 
     if (!response.ok) {
-      throw new Error('Failed to generate response')
+      throw new Error(`Failed to generate response: ${response.statusText}`)
     }
 
     return await response.json()
@@ -70,7 +70,7 @@ export const generateRepairDescription = async (
     })
 
     if (!response.ok) {
-      throw new Error('Failed to generate repair description')
+      throw new Error(`Failed to generate repair description: ${response.statusText}`)
     }
 
     return await response.json()
@@ -80,10 +80,24 @@ export const generateRepairDescription = async (
   }
 }
 
+// Health check endpoint
+export const checkServerHealth = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/health`)
+    if (!response.ok) {
+      throw new Error('Server is not responding')
+    }
+    return await response.json()
+  } catch (error) {
+    console.error('Health check error:', error)
+    return { status: 'offline', error: error.message }
+  }
+}
+
 // Helper function for error handling
 export const handleApiError = (error) => {
   if (error instanceof TypeError) {
-    return 'Network error. Please check your connection.'
+    return 'Network error. Please check if the server is running on port 5000.'
   }
   return error.message || 'An error occurred. Please try again.'
 }
