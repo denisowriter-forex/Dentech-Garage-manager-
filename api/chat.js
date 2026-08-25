@@ -12,48 +12,67 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Message is required' })
     }
 
-    // Get API key from environment variable
-    const metaApiKey = process.env.META_AI_API_KEY
-    if (!metaApiKey) {
-      return res.status(500).json({ error: 'API key not configured' })
+    // Get API key from environment variable (server-side only)
+    const modelApiKey = process.env.MODEL_API_KEY
+    if (!modelApiKey) {
+      console.error('MODEL_API_KEY not configured')
+      return res.status(500).json({ error: 'API configuration error' })
     }
 
-    // Prepare messages for API
+    // Prepare messages for Meta Model API (Anthropic-compatible format)
     const messages = conversationHistory || []
     messages.push({ role: 'user', content: message })
 
-    // Call Meta AI API
-    const response = await fetch('https://api.meta.com/v1/messages', {
+    // Call Meta Model API with Anthropic-compatible request
+    const response = await fetch('https://api.meta.ai/v1/messages', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${metaApiKey}`,
+        'Authorization': `Bearer ${modelApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'meta-llama-3-70b-instruct',
-        messages: messages,
+        model: 'muse-spark-1.2',
         max_tokens: 1024,
-        temperature: 0.7,
+        messages: messages,
       }),
     })
 
     if (!response.ok) {
-      throw new Error(`Meta AI API error: ${response.statusText}`)
+      const errorData = await response.json().catch(() => ({}))
+      console.error('Meta Model API error:', response.status, errorData)
+      return res.status(response.status).json({
+        error: 'Failed to get response from AI model',
+      })
     }
 
     const data = await response.json()
-    const aiResponse = data.choices?.[0]?.message?.content || data.message || ''
 
+    // Parse Anthropic-compatible response format
+    // Expected: { content: [{ type: 'text', text: '...' }], ... }
+    let aiResponse = ''
+    if (data.content && Array.isArray(data.content)) {
+      const textBlock = data.content.find((block) => block.type === 'text')
+      aiResponse = textBlock?.text || ''
+    }
+
+    if (!aiResponse) {
+      console.error('Unexpected API response format:', data)
+      return res.status(500).json({
+        error: 'Invalid response format from AI model',
+      })
+    }
+
+    // Return response with conversation history
     return res.status(200).json({
       success: true,
       response: aiResponse,
       messages: [...messages, { role: 'assistant', content: aiResponse }],
     })
   } catch (error) {
-    console.error('Chat API error:', error)
+    console.error('Chat API error:', error.message)
     return res.status(500).json({
       error: 'Failed to process chat message',
-      message: error.message,
+      // Never expose API key or sensitive details
     })
   }
 }
